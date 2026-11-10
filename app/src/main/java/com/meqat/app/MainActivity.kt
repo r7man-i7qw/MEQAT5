@@ -7,38 +7,27 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-
-private val Cream = Color(0xFFFAF9F6)
-private val Sage = Color(0xFF8A9A5B)
-private val Dark = Color(0xFF333333)
-private val Muted = Color(0xFF88877F)
-private val White = Color.White
-private val SoftGreen = Color(0xFFECEFDF)
+import com.meqat.app.screens.HomeScreen as MeqatHomeScreen
+import com.meqat.app.ui.theme.MeqatTheme
+import com.meqat.app.ui.theme.MeqatPalette
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         setContent {
-            MaterialTheme {
+            MeqatTheme {
                 MeqatApp()
             }
         }
@@ -47,84 +36,30 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun MeqatApp() {
-    var selectedTab by remember { mutableIntStateOf(0) }
-
-    Scaffold(
-        containerColor = Cream,
-        bottomBar = {
-            NavigationBar(containerColor = White) {
-                val tabs = listOf(
-                    "الرئيسية", "القبلة", "القرآن",
-                    "الأذكار", "الإعدادات"
-                )
-                val icons = listOf("⌂", "◉", "▤", "۞", "⚙")
-
-                tabs.forEachIndexed { index, title ->
-                    NavigationBarItem(
-                        selected = selectedTab == index,
-                        onClick = { selectedTab = index },
-                        icon = { Text(icons[index], fontSize = 21.sp) },
-                        label = { Text(title, fontSize = 10.sp) },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = Sage,
-                            selectedTextColor = Sage,
-                            indicatorColor = SoftGreen,
-                            unselectedIconColor = Muted,
-                            unselectedTextColor = Muted
-                        )
-                    )
-                }
-            }
-        }
-    ) { padding ->
-        Box(
-            Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            when (selectedTab) {
-                0 -> HomeScreen()
-                1 -> SimpleScreen("القبلة", "تحديد اتجاه القبلة")
-                2 -> SimpleScreen("القرآن الكريم", "كتاب الله بين يديك")
-                3 -> SimpleScreen("الأذكار", "اذكر الله واطمئن قلبك")
-                4 -> SettingsScreen()
-            }
-        }
-    }
-}
-
-@Composable
-fun HomeScreen() {
     val context = androidx.compose.ui.platform.LocalContext.current
 
+    var selectedTab by remember { mutableIntStateOf(0) }
     var prayerTimes by remember { mutableStateOf<PrayerTimes?>(null) }
     var loading by remember { mutableStateOf(false) }
-    var message by remember { mutableStateOf("حدد موقعك لحساب المواقيت") }
-    var locationGranted by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf("جارٍ تحديد موقعك") }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        locationGranted =
+        val granted =
             permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
             permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
 
-        if (locationGranted) {
+        if (granted) {
             loadPrayerTimes(
                 context,
-                { result ->
-                    prayerTimes = result
-                    loading = false
-                    message = "تم تحديث مواقيت الصلاة"
-                },
-                { error ->
-                    loading = false
-                    message = error
-                },
+                { prayerTimes = it; loading = false; message = "تم تحديث المواقيت" },
+                { message = it; loading = false },
                 { loading = true }
             )
         } else {
-            message = "لم يتم السماح بالوصول إلى الموقع"
+            loading = false
+            message = "يجب السماح بالوصول إلى الموقع"
         }
     }
 
@@ -140,7 +75,6 @@ fun HomeScreen() {
         ) == PackageManager.PERMISSION_GRANTED
 
         if (fine || coarse) {
-            locationGranted = true
             loadPrayerTimes(
                 context,
                 { prayerTimes = it; loading = false; message = "تم تحديث المواقيت" },
@@ -161,159 +95,69 @@ fun HomeScreen() {
         requestLocation()
     }
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Cream),
-        contentPadding = PaddingValues(20.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
-    ) {
-        item {
-            Column {
-                Text(
-                    "مِيقات",
-                    color = Sage,
-                    fontSize = 30.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    "رفيقك إلى الصلاة",
-                    color = Muted,
-                    fontSize = 13.sp
-                )
-            }
-        }
+    val next = prayerTimes?.let { getNextPrayer(it) }
 
-        item {
-            Surface(
-                shape = RoundedCornerShape(18.dp),
-                color = White,
-                border = BorderStroke(1.dp, Color(0xFFEAE8E0))
+    Scaffold(
+        containerColor = MeqatPalette.Background,
+        bottomBar = {
+            NavigationBar(
+                containerColor = Color.White
             ) {
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
-                ) {
-                    Text("مواقيت الصلاة حسب موقعك", color = Dark)
-                    Spacer(Modifier.height(6.dp))
-                    Text(message, color = Muted, fontSize = 12.sp)
+                val tabs = listOf(
+                    "الرئيسية", "القبلة", "القرآن",
+                    "الأذكار", "الإعدادات"
+                )
+                val icons = listOf("⌂", "◉", "▤", "۞", "⚙")
 
-                    Spacer(Modifier.height(12.dp))
-
-                    Button(
-                        onClick = { requestLocation() },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Sage
+                tabs.forEachIndexed { index, title ->
+                    NavigationBarItem(
+                        selected = selectedTab == index,
+                        onClick = { selectedTab = index },
+                        icon = {
+                            Text(icons[index], fontSize = 21.sp)
+                        },
+                        label = {
+                            Text(title, fontSize = 10.sp)
+                        },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = MeqatPalette.Primary,
+                            selectedTextColor = MeqatPalette.Primary,
+                            indicatorColor = MeqatPalette.SoftGreen,
+                            unselectedIconColor = MeqatPalette.TextSecondary,
+                            unselectedTextColor = MeqatPalette.TextSecondary
                         )
-                    ) {
-                        Text(
-                            if (loading) "جارٍ التحديث..." else "تحديد الموقع وتحديث المواقيت"
-                        )
-                    }
-                }
-            }
-        }
-
-        item {
-            val times = prayerTimes
-            val nextPrayer = times?.let { getNextPrayer(it) }
-
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(22.dp),
-                color = Sage
-            ) {
-                Column(
-                    Modifier.padding(22.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text("الصلاة القادمة", color = White)
-                    Spacer(Modifier.height(10.dp))
-                    Text(
-                        nextPrayer?.first ?: "--",
-                        color = White,
-                        fontSize = 25.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        nextPrayer?.second ?: "--:--",
-                        color = White,
-                        fontSize = 35.sp,
-                        fontWeight = FontWeight.Bold
                     )
                 }
             }
         }
+    ) { padding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            when (selectedTab) {
+                0 -> MeqatHomeScreen(
+                    locationName = if (prayerTimes != null)
+                        "تم تحديد موقعك"
+                    else message,
+                    nextPrayer = next?.first ?: "--",
+                    nextPrayerTime = next?.second ?: "--:--",
+                    countdown = "--:--:--",
+                    fajr = prayerTimes?.fajr ?: "--:--",
+                    dhuhr = prayerTimes?.dhuhr ?: "--:--",
+                    asr = prayerTimes?.asr ?: "--:--",
+                    maghrib = prayerTimes?.maghrib ?: "--:--",
+                    isha = prayerTimes?.isha ?: "--:--"
+                )
 
-        item {
-            Text(
-                "مواقيت الصلاة",
-                color = Dark,
-                fontSize = 19.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
-
-        item {
-            val times = prayerTimes
-
-            val prayers = listOf(
-                "الفجر" to times?.fajr,
-                "الشروق" to times?.sunrise,
-                "الظهر" to times?.dhuhr,
-                "العصر" to times?.asr,
-                "المغرب" to times?.maghrib,
-                "العشاء" to times?.isha
-            )
-
-            Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                prayers.chunked(2).forEach { pair ->
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(9.dp)
-                    ) {
-                        pair.forEach { prayer ->
-                            Surface(
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(15.dp),
-                                color = White,
-                                border = BorderStroke(
-                                    1.dp,
-                                    Color(0xFFEAE8E0)
-                                )
-                            ) {
-                                Column(
-                                    Modifier.padding(15.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Text(prayer.first, color = Dark)
-                                    Spacer(Modifier.height(7.dp))
-                                    Text(
-                                        prayer.second ?: "--:--",
-                                        color = Sage,
-                                        fontSize = 18.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        item {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                color = SoftGreen
-            ) {
-                Text(
-                    "﴿ أَلَا بِذِكْرِ اللَّهِ تَطْمَئِنُّ الْقُلُوبُ ﴾",
-                    Modifier.padding(18.dp),
-                    color = Dark,
-                    textAlign = TextAlign.Center,
-                    fontSize = 16.sp
+                1 -> SimpleScreen("القبلة", "سيتم تفعيل البوصلة الحقيقية هنا")
+                2 -> SimpleScreen("القرآن الكريم", "سيتم إضافة المصحف الكامل هنا")
+                3 -> SimpleScreen("الأذكار", "سيتم إضافة الأذكار والعداد هنا")
+                4 -> SettingsScreen(
+                    message = message,
+                    loading = loading,
+                    onUpdateLocation = { requestLocation() }
                 )
             }
         }
@@ -343,8 +187,8 @@ fun loadPrayerTimes(
 }
 
 fun getNextPrayer(times: PrayerTimes): Pair<String, String> {
-    val format = SimpleDateFormat("HH:mm", Locale.US)
-    val now = format.format(Date())
+    val format = java.text.SimpleDateFormat("HH:mm", java.util.Locale.US)
+    val now = format.format(java.util.Date())
 
     val prayers = listOf(
         "الفجر" to times.fajr,
@@ -361,35 +205,81 @@ fun getNextPrayer(times: PrayerTimes): Pair<String, String> {
 @Composable
 fun SimpleScreen(title: String, description: String) {
     Column(
-        Modifier
+        modifier = Modifier
             .fillMaxSize()
-            .background(Cream)
+            .background(MeqatPalette.Background)
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Text(title, color = Sage, fontSize = 29.sp)
+        Text(
+            title,
+            color = MeqatPalette.Primary,
+            fontSize = 27.sp,
+            fontWeight = FontWeight.Bold
+        )
+
         Spacer(Modifier.height(12.dp))
-        Text(description, color = Muted)
+
+        Text(
+            description,
+            color = MeqatPalette.TextSecondary
+        )
     }
 }
 
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(
+    message: String,
+    loading: Boolean,
+    onUpdateLocation: () -> Unit
+) {
     Column(
-        Modifier
+        modifier = Modifier
             .fillMaxSize()
-            .background(Cream)
+            .background(MeqatPalette.Background)
             .padding(24.dp)
     ) {
         Text(
             "الإعدادات",
-            color = Dark,
+            color = MeqatPalette.TextPrimary,
             fontSize = 26.sp,
             fontWeight = FontWeight.Bold
         )
+
         Spacer(Modifier.height(20.dp))
-        Text("إعداد وتطوير: عبدالرحمن أحمد", color = Muted)
-        Text("مِيقات | MEQAT", color = Sage)
+
+        Text("الموقع ومواقيت الصلاة", color = MeqatPalette.Primary)
+
+        Spacer(Modifier.height(8.dp))
+
+        Text(message, color = MeqatPalette.TextSecondary)
+
+        Button(
+            onClick = onUpdateLocation,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MeqatPalette.Primary
+            )
+        ) {
+            Text(if (loading) "جارٍ التحديث..." else "تحديث الموقع والمواقيت")
+        }
+
+        Spacer(Modifier.height(25.dp))
+
+        Text(
+            "إعداد وتطوير: عبدالرحمن أحمد",
+            color = MeqatPalette.TextSecondary
+        )
+
+        Text(
+            "مِيقات | MEQAT",
+            color = MeqatPalette.Primary
+        )
+
+        Text(
+            "رفيقك إلى الصلاة",
+            color = MeqatPalette.TextSecondary,
+            fontSize = 13.sp
+        )
     }
 }
